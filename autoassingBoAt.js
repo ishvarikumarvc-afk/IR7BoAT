@@ -1,5 +1,5 @@
 (function() {
-    const STORAGE_KEY = "FLOLITE_PRO_ADVANCED_DISPATCHER_V7";
+    const STORAGE_KEY = "FLOLITE_PRO_ADVANCED_DISPATCHER_0.1";
 
     function getInitialState() {
         return {
@@ -31,6 +31,18 @@
 
     let appState = loadState();
     let selectedReassignData = { oldCasper: "", tlId: "" };
+
+    // Helper: Dynamic Extraction of Proxy User ID
+    function extractDynamicProxyUser(assignedToCasper) {
+        if (assignedToCasper && assignedToCasper.trim().length > 0) {
+            return assignedToCasper.trim();
+        }
+        // Fallback: LocalStorage / Cookie Extraction
+        const sessionUser = localStorage.getItem("userId") || localStorage.getItem("casperId") || sessionStorage.getItem("user");
+        if (sessionUser) return sessionUser.replace(/"/g, '').trim();
+
+        return "system.user";
+    }
 
     // Helper: Deduplicate Pending List by TL ID
     function deduplicateList(list) {
@@ -146,7 +158,7 @@
                 <!-- CONTAINER 3: LOADED CSV DATA POOL -->
                 <div style="background: #ffffff; border-radius: 8px; border: 1px solid #0d6efd; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
                     <div style="background: #0d6efd; color: #ffffff; padding: 10px 14px; font-weight: 800; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
-                        <span>📂 Loaded CSV Data Pool (Dynamic Headers)</span>
+                        <span>📂 Loaded CSV Data Pool</span>
                         <span id="c1Count" style="background: rgba(255,255,255,0.25); color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 800;">0</span>
                     </div>
                     <div style="overflow-y: auto; flex: 1; padding: 8px;" id="c1Table"></div>
@@ -241,11 +253,14 @@
     document.body.appendChild(rootContainer);
 
     // ---------------------------------------------------------
-    // 2. API ASSIGN EXECUTION
+    // 2. API ASSIGN EXECUTION (WITH DYNAMIC X-PROXY-USER)
     // ---------------------------------------------------------
     async function executeApiAssign(picklistId, assignedTo) {
         const assignApi = "http://10.24.1.71/flo-lite-routes-api/outbound-picking-proxy/api/v3.0/picklists/assign";
         const nowTimestamp = Date.now().toString();
+
+        // Extracted Proxy User Logic
+        const dynamicProxyUser = extractDynamicProxyUser(assignedTo);
 
         const payload = {
             assignedTo: assignedTo.trim(),
@@ -262,7 +277,7 @@
                     "x-client-id": "WH",
                     "x-event-time": nowTimestamp,
                     "x-facility-id": "gur_san_wh_nl_01nl",
-                    "x-proxy-user": "ca.4005003",
+                    "x-proxy-user": dynamicProxyUser, // Dynamic Proxy User Extraction
                     "x-tenant-id": "FKI",
                     "x-trace-id": nowTimestamp,
                     "x-user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 EKCL/website/1"
@@ -280,14 +295,14 @@
         }
     }
 
-    // Export CSV
+    // Export CSV Data
     document.getElementById("downloadDataBtn").addEventListener("click", () => {
         const allPending = [...appState.p0, ...appState.p1, ...appState.p2];
         const trackerList = Object.keys(appState.activeTrackers).map(k => ({ casperId: k, ...appState.activeTrackers[k] }));
 
         let csvContent = "data:text/csv;charset=utf-8,";
         
-        csvContent += "=== PENDING & LOADED QUEUE ===\n";
+        csvContent += "=== PENDING QUEUE ===\n";
         if (allPending.length > 0) {
             const headers = Object.keys(allPending[0]);
             csvContent += headers.join(",") + "\n";
@@ -314,11 +329,11 @@
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `FloLite_Dispatch_Report_${Date.now()}.csv`);
+        link.setAttribute("download", `FloLite_Report_${Date.now()}.csv`);
         document.body.appendChild(link);
         link.click();
         link.remove();
-        log("📥 System Data Report Exported Successfully!");
+        log("📥 System Data Exported Successfully!");
     });
 
     // ---------------------------------------------------------
@@ -477,7 +492,7 @@
         }
 
         appState[currentUploadBucket] = deduplicateList([...appState[currentUploadBucket], ...parsedRows]);
-        log(`Uploaded & Deduplicated CSV Data in ${currentUploadBucket.toUpperCase()}`);
+        log(`Uploaded CSV Data in ${currentUploadBucket.toUpperCase()}`);
         saveState();
         fileInput.value = "";
     });
@@ -520,7 +535,7 @@
         }
     });
 
-    // Global Click Handler
+    // Global Click Listener
     document.addEventListener("click", async (e) => {
         if (e.target.classList.contains("manual-reassign-btn")) {
             const oldCasper = e.target.getAttribute("data-casper");
@@ -567,7 +582,7 @@
         }
     });
 
-    // Zone Modal
+    // Zone Lock Modal
     document.getElementById("openZoneLockModalBtn").addEventListener("click", () => {
         const allPending = [...appState.p0, ...appState.p1, ...appState.p2];
         const uniqueZones = new Set();
@@ -637,20 +652,20 @@
 
         const allPending = [...appState.p0, ...appState.p1, ...appState.p2];
 
-        // Container 1: Loaded Pool
+        // Container 1
         document.getElementById("c1Count").innerText = allPending.length;
         renderPaginatedTable("c1Table", "c1Pagination", allPending, appState.pageC1, "pageC1", createDynamicHeaderTable);
 
-        // Container 2: Active Trackers (NOW ALSO PAGINATED FOR 100+ TLs)
+        // Container 2 (Active Trackers Paginated)
         const trackerList = Object.keys(appState.activeTrackers).map(k => ({ casperId: k, ...appState.activeTrackers[k] }));
         document.getElementById("c2Count").innerText = trackerList.length;
         renderPaginatedTable("c2Table", "c2Pagination", trackerList, appState.pageC2, "pageC2", createActiveTrackerTable);
 
-        // Container 3: Pending Queue
+        // Container 3
         document.getElementById("c3Count").innerText = allPending.length;
         renderPaginatedTable("c3Table", "c3Pagination", allPending, appState.pageC3, "pageC3", createPendingErrorTable);
 
-        // Container 4: Completed List
+        // Container 4
         document.getElementById("c4Count").innerText = appState.completedList.length;
         renderPaginatedTable("c4Table", "c4Pagination", appState.completedList, appState.pageC4, "pageC4", createDynamicHeaderTable);
     }
@@ -755,7 +770,7 @@
         document.getElementById("logBar").innerHTML = `<span><b>[${new Date().toLocaleTimeString()}]</b> ${msg}</span><span style="font-weight:800; color:#0d6efd;">ishvarikumar.vc@flipkart.com</span>`;
     }
 
-    // Controls
+    // Engine Toggle
     document.getElementById("toggleEngineBtn").addEventListener("click", () => {
         appState.isEngineRunning = !appState.isEngineRunning;
         saveState();
