@@ -1,5 +1,5 @@
 (function() {
-    const STORAGE_KEY = "FLOLITE_PRO_ADVANCED_DISPATCHER_0.1";
+    const STORAGE_KEY = "FLOLITE_PRO_ADVANCED_DISPATCHER_v.1";
 
     function getInitialState() {
         return {
@@ -92,7 +92,7 @@
                     <div style="font-size: 17px; font-weight: 800; letter-spacing: 0.3px; display: flex; align-items: center; gap: 8px;">
                         Flipkart Seller Merge Autoassign <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 4px; font-size: 13px; font-weight: 700; border: 1px solid rgba(255,255,255,0.3);">boAt Enterprise</span>
                     </div>
-                    <div style="font-size: 12px; opacity: 0.9; font-weight: 500;">Flo-Lite Outbound Dispatcher Engine v7.0</div>
+                    <div style="font-size: 12px; opacity: 0.9; font-weight: 500;">Flo-Lite Outbound Dispatcher Engine v1.0</div>
                 </div>
                 <div style="margin-left: 12px; display: flex; align-items: center; gap: 8px;">
                     <span id="engineBadge" style="padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; background: #dc3545; color: #fff; letter-spacing: 0.5px;">STOPPED</span>
