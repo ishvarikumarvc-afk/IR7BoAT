@@ -1,5 +1,5 @@
 (function() {
-    const STORAGE_KEY = "FLOLITE_PRO_ADVANCED_DISPATCHER_v.1";
+    const STORAGE_KEY = "FLOLITE_PRO_ADVANCED_DISPATCHER_V7";
 
     function getInitialState() {
         return {
@@ -37,11 +37,28 @@
         if (assignedToCasper && assignedToCasper.trim().length > 0) {
             return assignedToCasper.trim();
         }
-        // Fallback: LocalStorage / Cookie Extraction
         const sessionUser = localStorage.getItem("userId") || localStorage.getItem("casperId") || sessionStorage.getItem("user");
         if (sessionUser) return sessionUser.replace(/"/g, '').trim();
 
         return "system.user";
+    }
+
+    // Helper: Dynamic Extraction of CSRF Token from DOM / Cookie / JS Window Object
+    function extractDynamicCsrfToken() {
+        // 1. Check DOM Meta Tag
+        const metaTag = document.querySelector('meta[name="csrf-token"]') || document.querySelector('meta[name="_csrf"]');
+        if (metaTag && metaTag.content) return metaTag.content;
+
+        // 2. Check Global Window Object (Common in Single Page Apps)
+        if (window.csrfToken) return window.csrfToken;
+        if (window.__CSRF_TOKEN__) return window.__CSRF_TOKEN__;
+
+        // 3. Extract from Cookie
+        const match = document.cookie.match(new RegExp('(^| )' + 'CSRF-TOKEN' + '=([^;]+)')) ||
+                      document.cookie.match(new RegExp('(^| )' + 'XSRF-TOKEN' + '=([^;]+)'));
+        if (match) return decodeURIComponent(match[2]);
+
+        return "";
     }
 
     // Helper: Deduplicate Pending List by TL ID
@@ -217,7 +234,7 @@
             </div>
         </div>
 
-        <!-- NEW MODERN REASSIGN MODAL CONTAINER -->
+        <!-- REASSIGN MODAL CONTAINER -->
         <div id="customReassignModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000001; justify-content: center; align-items: center; backdrop-filter: blur(3px);">
             <div style="background: #ffffff; border-radius: 12px; width: 440px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.2); border: 1px solid #0d6efd;">
                 <div style="background: #0d6efd; color: #fff; padding: 14px 20px; font-weight: 800; font-size: 15px; display: flex; justify-content: space-between; align-items: center;">
@@ -253,35 +270,42 @@
     document.body.appendChild(rootContainer);
 
     // ---------------------------------------------------------
-    // 2. API ASSIGN EXECUTION (WITH DYNAMIC X-PROXY-USER)
+    // 2. API ASSIGN EXECUTION (DYNAMIC CSRF-TOKEN & DYNAMIC X-PROXY-USER)
     // ---------------------------------------------------------
     async function executeApiAssign(picklistId, assignedTo) {
         const assignApi = "http://10.24.1.71/flo-lite-routes-api/outbound-picking-proxy/api/v3.0/picklists/assign";
         const nowTimestamp = Date.now().toString();
 
-        // Extracted Proxy User Logic
+        // Extracted Proxy User & Dynamic CSRF Token Logic
         const dynamicProxyUser = extractDynamicProxyUser(assignedTo);
+        const dynamicCsrfToken = extractDynamicCsrfToken();
 
         const payload = {
             assignedTo: assignedTo.trim(),
             picklistIds: [picklistId.trim()]
         };
 
+        const reqHeaders = {
+            "accept": "*/*",
+            "content-type": "application/json",
+            "x-client-id": "WH",
+            "x-event-time": nowTimestamp,
+            "x-facility-id": "gur_san_wh_nl_01nl",
+            "x-proxy-user": dynamicProxyUser,
+            "x-tenant-id": "FKI",
+            "x-trace-id": nowTimestamp,
+            "x-user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 EKCL/website/1"
+        };
+
+        // Inject dynamic CSRF Token only if extracted successfully
+        if (dynamicCsrfToken) {
+            reqHeaders["csrf-token"] = dynamicCsrfToken;
+        }
+
         try {
             const res = await window.fetch(assignApi, {
                 method: "POST",
-                headers: {
-                    "accept": "*/*",
-                    "content-type": "application/json",
-                    "csrf-token": "MInLSXQc-HDXlDnwxvqxxBpuupDCrxpZWxMY",
-                    "x-client-id": "WH",
-                    "x-event-time": nowTimestamp,
-                    "x-facility-id": "gur_san_wh_nl_01nl",
-                    "x-proxy-user": dynamicProxyUser, // Dynamic Proxy User Extraction
-                    "x-tenant-id": "FKI",
-                    "x-trace-id": nowTimestamp,
-                    "x-user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 EKCL/website/1"
-                },
+                headers: reqHeaders,
                 referrer: "http://10.24.1.71/flo-lite/gur_san_wh_nl_01nl/v2/desktop/ncob/transfer-list",
                 referrerPolicy: "strict-origin-when-cross-origin",
                 body: JSON.stringify(payload),
@@ -632,7 +656,7 @@
     });
 
     // ---------------------------------------------------------
-    // 5. RENDER UI WITH ALL 4 CONTAINERS PAGINATED
+    // 5. RENDER UI WITH ALL CONTAINERS PAGINATED
     // ---------------------------------------------------------
     function renderUI() {
         const badge = document.getElementById("engineBadge");
